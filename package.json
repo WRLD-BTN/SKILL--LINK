@@ -1,0 +1,12 @@
+{
+  "name": "skilllink",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "concurrently -k -n frontend,backend \"npm --prefix frontend run dev\" \"npm --prefix backend run dev\"",
+    "build": "npm --prefix frontend run build && npm --prefix backend run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
