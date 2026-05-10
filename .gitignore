@@ -1,8 +1,4 @@
-node_modules/
-dist/
-build/
-.env
-.env.local
-.DS_Store
-coverage/
-project_docs/rendered/
+node_modules/ 
+.env 
+dist/ 
+*.log 
