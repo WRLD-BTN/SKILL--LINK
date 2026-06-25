@@ -27,7 +27,12 @@ export function Layout({ children }: { children: ReactNode }) {
     <div className="app-shell">
       <header className="topbar">
         <Link className="brand" to={user?.role === 'admin' ? '/admin' : '/dashboard'}>
-          <span className="brand-mark">SL</span>
+          <img
+            src="/logo.png"
+            alt="SkillLink"
+            className="brand-mark"
+            style={{ objectFit: 'contain', padding: '0.15rem' }}
+          />
           <div>
             <strong>SkillLink</strong>
           </div>
