@@ -1,0 +1,529 @@
+und
+/home/wrld/Desktop/SKILL--LINK/backend/src/lib/africasTalking.ts: line 3: syntax error near unexpected token `('
+/home/wrld/Desktop/SKILL--LINK/backend/src/lib/africasTalking.ts: line 3: `const require = createRequire(import.meta.url)'
+/home/wrld/Desktop/SKILL--LINK/backend/src/lib/otpStore.ts: line 1: interface: command not found
+/home/wrld/Desktop/SKILL--LINK/backend/src/lib/otpStore.ts: line 2: code:: command not found
+/home/wrld/Desktop/SKILL--LINK/backend/src/lib/otpStore.ts: line 3: expiresAt:: command not found
+/home/wrld/Desktop/SKILL--LINK/backend/src/lib/otpStore.ts: line 4: syntax error near unexpected token `}'
+/home/wrld/Desktop/SKILL--LINK/backend/src/lib/otpStore.ts: line 4: `}'
+/home/wrld/Desktop/SKILL--LINK/backend/src/lib/phone.ts: line 1: syntax error near unexpected token `('
+/home/wrld/Desktop/SKILL--LINK/backend/src/lib/phone.ts: line 1: `export function normalizeZimbabwePhone(input: string) {'
+/home/wrld/Desktop/SKILL--LINK/backend/src/lib/supabase.ts: line 1: import: command not found
+/home/wrld/Desktop/SKILL--LINK/backend/src/lib/supabase.ts: line 2: import: command not found
+/home/wrld/Desktop/SKILL--LINK/backend/src/lib/supabase.ts: line 6: syntax error near unexpected token `const'
+/home/wrld/Desktop/SKILL--LINK/backend/src/lib/supabase.ts: line 6: `const supabaseUrl = process.env.SUPABASE_URL'
+/home/wrld/Desktop/SKILL--LINK/backend/src/server.ts: line 1: import: command not found
+/home/wrld/Desktop/SKILL--LINK/backend/src/server.ts: line 2: import: command not found
+/home/wrld/Desktop/SKILL--LINK/backend/src/server.ts: line 3: import: command not found
+/home/wrld/Desktop/SKILL--LINK/backend/src/server.ts: line 4: import: command not found
+/home/wrld/Desktop/SKILL--LINK/backend/src/server.ts: line 5: import: command not found
+/home/wrld/Desktop/SKILL--LINK/backend/src/server.ts: line 6: import: command not found
+/home/wrld/Desktop/SKILL--LINK/backend/src/server.ts: line 7: import: command not found
+/home/wrld/Desktop/SKILL--LINK/backend/src/server.ts: line 11: syntax error near unexpected token `const'
+/home/wrld/Desktop/SKILL--LINK/backend/src/server.ts: line 11: `const app = express()'
+bash: wrld@wrld-ThinkPad-T450:~/Desktop/SKILL--LINK$: No such file or directory
+import cors from 'cors'
+import dotenv from 'dotenv'
+import express from 'express'
+import { jobs, skills, tradespeople } from './data/mock.js'
+import { sendVerificationSms } from './lib/africasTalking.js'
+import { createOtp, verifyOtp } from './lib/otpStore.js'
+import { normalizeZimbabwePhone } from './lib/phone.js'
+
+dotenv.config()
+
+const app = express()
+const port = Number(process.env.PORT ?? 4000)
+
+app.use(cors())
+app.use(express.json())
+
+app.get('/health', (_request, response) => {
+  response.json({ status: 'ok', service: 'skilllink-api' })
+})
+
+app.get('/api/skills', (_request, response) => {
+  response.json(skills)
+})
+
+app.get('/api/tradespeople', (request, response) => {
+  const skill = String(request.query.skill ?? '').toLowerCase()
+  const suburb = String(request.query.suburb ?? '').toLowerCase()
+
+  const filtered = tradespeople.filter((person) => {
+    const matchesSkill =
+      skill.length === 0 ||
+      person.skillIds.some((skillId) =>
+        skills.find((entry) => entry.id === skillId)?.name.toLowerCase().includes(skill),
+      )
+    const matchesSuburb = suburb.length === 0 || person.suburb.toLowerCase().includes(suburb)
+
+    return matchesSkill && matchesSuburb
+  })
+
+  response.json(filtered)
+})
+
+app.get('/api/jobs', (request, response) => {
+  const skill = String(request.query.skill ?? '').toLowerCase()
+  const suburb = String(request.query.suburb ?? '').toLowerCase()
+
+  const filtered = jobs.filter((job) => {
+    const skillName = skills.find((entry) => entry.id === job.skillId)?.name.toLowerCase() ?? ''
+    const matchesSkill = skill.length === 0 || skillName.includes(skill)
+    const matchesSuburb = suburb.length === 0 || job.suburb.toLowerCase().includes(suburb)
+
+    return matchesSkill && matchesSuburb
+  })
+
+  response.json(filtered)
+})
+
+app.post('/api/auth/request-otp', async (request, response) => {
+  const phone = normalizeZimbabwePhone(String(request.body?.phone ?? ''))
+
+  if (!phone) {
+    response.status(400).json({ message: 'Enter a valid Zimbabwean phone number.' })
+    return
+  }
+
+  try {
+    const code = createOtp(phone)
+    const result = await sendVerificationSms(phone, code)
+
+    response.json({
+      message: result.simulated ? 'Verification code generated for development.' : 'Verification code sent.',
+      ...(result.simulated && process.env.NODE_ENV !== 'production' ? { debugCode: code } : {}),
+    })
+  } catch (error) {
+    response.status(502).json({
+      message: 'Unable to send verification SMS right now.',
+      detail: error instanceof Error ? error.message : 'Unknown SMS provider error.',
+    })
+  }
+})
+
+app.post('/api/auth/verify-otp', (request, response) => {
+  const phone = normalizeZimbabwePhone(String(request.body?.phone ?? ''))
+  const code = String(request.body?.code ?? '').trim()
+
+  if (!phone) {
+    response.status(400).json({ message: 'Enter a valid Zimbabwean phone number.' })
+    return
+  }
+
+  if (!code) {
+    response.status(400).json({ message: 'Enter the verification code.' })
+    return
+  }
+
+  const result = verifyOtp(phone, code)
+
+  if (!result.ok) {
+    response.status(400).json(result)
+    return
+  }
+
+  response.json(result)
+})
+
+app.listen(port, () => {
+  console.log(`SkillLink API listening on http://localhost:${port}`)
+})
+bash: //: Is a directory
+Command 'import' not found, but can be installed with:
+sudo apt install graphicsmagick-imagemagick-compat  # version 1.4+really1.3.42-1, or
+sudo apt install imagemagick-6.q16                  # version 8:6.9.11.60+dfsg-1.6ubuntu1
+sudo apt install imagemagick-6.q16hdri              # version 8:6.9.11.60+dfsg-1.6ubuntu1
+Command 'const' not found, did you mean:
+  command 'coinst' from deb coinst (1.9.3-5)
+Try: sudo apt install <deb name>
+bash: //: Is a directory
+bash: !import.meta.env.VITE_API_URL: event not found
+bash: syntax error near unexpected token `'[SkillLink] VITE_API_URL not configured, using default http://localhost:4000''
+bash: syntax error near unexpected token `}'
+bash: T/dev/fd/63: No such file or directory
+bash: syntax error near unexpected token `('
+headers:: command not found
+Command 'path:' not found, did you mean:
+  command 'path6' from deb ipv6toolkit (2.0+ds.1-2)
+Try: sudo apt install <deb name>
+Content-Type:: command not found
+bash: syntax error near unexpected token `init?.headers'
+},: command not found
+...init,: command not found
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `('
+bash: !response.ok: event not found
+bash: syntax error near unexpected token `('
+bash: syntax error near unexpected token `}'
+bash: return: body: numeric argument required
+bash: return: can only `return' from a function or sourced script
+bash: syntax error near unexpected token `}'
+bash: export: `{': not a valid identifier
+Command 'name:' not found, did you mean:
+  command 'named' from deb bind9 (1:9.18.39-0ubuntu0.24.04.5)
+  command 'namei' from deb util-linux (2.39.3-9ubuntu6.5)
+Try: sudo apt install <deb name>
+phone:: command not found
+email:: command not found
+role:: command not found
+suburb:: command not found
+bash: syntax error near unexpected token `}'
+bash: export: `{': not a valid identifier
+ok:: command not found
+message?:: command not found
+requiresApproval?:: command not found
+status?:: command not found
+Rejected: command not found
+Approved: command not found
+user?:: command not found
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `('
+signin: command not found
+Command 'mode:' not found, did you mean:
+  command 'mode2' from deb lirc (0.10.1-7.4)
+Try: sudo apt install <deb name>
+Command 'name:' not found, did you mean:
+  command 'namei' from deb util-linux (2.39.3-9ubuntu6.5)
+  command 'named' from deb bind9 (1:9.18.39-0ubuntu0.24.04.5)
+Try: sudo apt install <deb name>
+phone:: command not found
+email:: command not found
+suburb:: command not found
+role:: command not found
+password:: command not found
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `('
+bash: syntax error
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `('
+fullName:: command not found
+email:: command not found
+phone:: command not found
+suburb:: command not found
+city:: command not found
+primarySkill:: command not found
+yearsExperience:: command not found
+password:: command not found
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `('
+bash: syntax error
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `('
+bash: syntax error near unexpected token `('
+bash: syntax error near unexpected token `{'
+bash: syntax error near unexpected token `'email','
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `{'
+bash: syntax error near unexpected token `'phone','
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `('
+bash: syntax error
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `('
+bash: PlatformUser[]/dev/fd/63: No such file or directory
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `('
+bash: syntax error near unexpected token `('
+bash: syntax error
+bash: /api/admin/users: No such file or directory
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `('
+bash: syntax error near unexpected token `}'
+bash: syntax error
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `('
+bash: JoinRequest[]/dev/fd/63: No such file or directory
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `('
+bash: {: No such file or directory
+bash: /api/admin/requests: No such file or directory
+bash: /api/admin/requests/: No such file or directory
+request:: command not found
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `('
+bash: syntax error near unexpected token `('
+bash: syntax error
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `('
+email:: command not found
+originalAdminPassword:: command not found
+newPassword:: command not found
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `('
+bash: syntax error
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `}'
+Command 'import' not found, but can be installed with:
+sudo apt install graphicsmagick-imagemagick-compat  # version 1.4+really1.3.42-1, or
+sudo apt install imagemagick-6.q16                  # version 8:6.9.11.60+dfsg-1.6ubuntu1
+sudo apt install imagemagick-6.q16hdri              # version 8:6.9.11.60+dfsg-1.6ubuntu1
+Command 'import' not found, but can be installed with:
+sudo apt install graphicsmagick-imagemagick-compat  # version 1.4+really1.3.42-1, or
+sudo apt install imagemagick-6.q16                  # version 8:6.9.11.60+dfsg-1.6ubuntu1
+sudo apt install imagemagick-6.q16hdri              # version 8:6.9.11.60+dfsg-1.6ubuntu1
+Command 'import' not found, but can be installed with:
+sudo apt install graphicsmagick-imagemagick-compat  # version 1.4+really1.3.42-1, or
+sudo apt install imagemagick-6.q16                  # version 8:6.9.11.60+dfsg-1.6ubuntu1
+sudo apt install imagemagick-6.q16hdri              # version 8:6.9.11.60+dfsg-1.6ubuntu1
+Command 'import' not found, but can be installed with:
+sudo apt install graphicsmagick-imagemagick-compat  # version 1.4+really1.3.42-1, or
+sudo apt install imagemagick-6.q16                  # version 8:6.9.11.60+dfsg-1.6ubuntu1
+sudo apt install imagemagick-6.q16hdri              # version 8:6.9.11.60+dfsg-1.6ubuntu1
+Command 'import' not found, but can be installed with:
+sudo apt install graphicsmagick-imagemagick-compat  # version 1.4+really1.3.42-1, or
+sudo apt install imagemagick-6.q16                  # version 8:6.9.11.60+dfsg-1.6ubuntu1
+sudo apt install imagemagick-6.q16hdri              # version 8:6.9.11.60+dfsg-1.6ubuntu1
+Command 'import' not found, but can be installed with:
+sudo apt install graphicsmagick-imagemagick-compat  # version 1.4+really1.3.42-1, or
+sudo apt install imagemagick-6.q16                  # version 8:6.9.11.60+dfsg-1.6ubuntu1
+sudo apt install imagemagick-6.q16hdri              # version 8:6.9.11.60+dfsg-1.6ubuntu1
+Command 'import' not found, but can be installed with:
+sudo apt install graphicsmagick-imagemagick-compat  # version 1.4+really1.3.42-1, or
+sudo apt install imagemagick-6.q16                  # version 8:6.9.11.60+dfsg-1.6ubuntu1
+sudo apt install imagemagick-6.q16hdri              # version 8:6.9.11.60+dfsg-1.6ubuntu1
+bash: syntax error near unexpected token `const'
+bash: syntax error near unexpected token `('
+bash: syntax error near unexpected token `cors'
+bash: syntax error near unexpected token `express.json'
+bash: syntax error near unexpected token `'/health','
+bash: syntax error near unexpected token `{'
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `'/api/skills','
+bash: syntax error near unexpected token `skills'
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `'/api/tradespeople','
+bash: syntax error near unexpected token `('
+bash: syntax error near unexpected token `('
+bash: syntax error near unexpected token `('
+Command 'const' not found, did you mean:
+  command 'coinst' from deb coinst (1.9.3-5)
+Try: sudo apt install <deb name>
+bash: syntax error near unexpected token `('
+bash: syntax error near unexpected token `('
+bash: syntax error near unexpected token `)'
+bash: syntax error near unexpected token `.includes'
+bash: return: matchesSkill: numeric argument required
+bash: return: can only `return' from a function or sourced script
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `filtered'
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `'/api/jobs','
+bash: syntax error near unexpected token `('
+bash: syntax error near unexpected token `('
+bash: syntax error near unexpected token `('
+bash: syntax error near unexpected token `('
+bash: syntax error near unexpected token `skill'
+bash: syntax error near unexpected token `.includes'
+bash: return: matchesSkill: numeric argument required
+bash: return: can only `return' from a function or sourced script
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `filtered'
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `'/api/auth/request-otp','
+bash: syntax error near unexpected token `('
+bash: !phone: event not found
+bash: syntax error near unexpected token `400'
+bash: return: can only `return' from a function or sourced script
+bash: syntax error near unexpected token `}'
+Command 'try' not found, did you mean:
+  command 'tty' from deb coreutils (9.4-3ubuntu6.2)
+  command 'trn' from deb trn4 (4.0-test77-16)
+  command 'tr' from deb coreutils (9.4-3ubuntu6.2)
+  command 'trs' from deb konwert (1.8-13.2)
+  command 'trf' from deb trf (4.09.1-6)
+  command 'pry' from deb pry (0.14.2-1)
+  command 'tre' from deb tre-command (0.4.0-4)
+Try: sudo apt install <deb name>
+bash: syntax error near unexpected token `('
+bash: syntax error near unexpected token `('
+bash: syntax error near unexpected token `{'
+Command 'message:' not found, did you mean:
+  command 'messages' from deb mailutils (1:3.16-1build1)
+Try: sudo apt install <deb name>
+bash: syntax error near unexpected token `result.simulated'
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `502'
+Command 'message:' not found, did you mean:
+  command 'messages' from deb mailutils (1:3.16-1build1)
+Try: sudo apt install <deb name>
+detail:: command not found
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `'/api/auth/verify-otp','
+bash: syntax error near unexpected token `('
+bash: syntax error near unexpected token `('
+bash: !phone: event not found
+bash: syntax error near unexpected token `400'
+bash: return: can only `return' from a function or sourced script
+bash: syntax error near unexpected token `}'
+  if (codex fix bug) {
+bash: syntax error near unexpected token `{'
+bash: syntax error near unexpected token `400'
+bash: return: can only `return' from a function or sourced script
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `('
+bash: !result.ok: event not found
+bash: syntax error near unexpected token `400'
+bash: return: can only `return' from a function or sourced script
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `result'
+bash: syntax error near unexpected token `}'
+bash: syntax error near unexpected token `port,'
+bash: syntax error near unexpected token ``SkillLink API listening on http://localhost:${port}`'
+bash: syntax error near unexpected token `}'
+bash: wrld@wrld-ThinkPad-T450:~/Desktop/SKILL--LINK$: No such file or directory
+wrld@wrld-ThinkPad-T450:~/Desktop/SKILL--LINK$ cat ~/Desktop/SKILL--LINK/frontend/src/types.ts
+// Shared frontend types keep route pages, local storage helpers, and mock data aligned.
+export type UserRole = 'client' | 'tradesperson' | 'admin'
+
+export interface Skill {
+  id: number
+  name: string
+  category: string
+}
+
+export interface Review {
+  id: number
+  author: string
+  rating: number
+  comment: string
+}
+
+export interface Tradesperson {
+  id: string
+  fullName: string
+  suburb: string
+  city: string
+  bio: string
+  skills: Skill[]
+  hourlyRate: number
+  fixedRate?: number
+  availability: 'AvailableToday' | 'Booked' | 'Away'
+  whatsappNumber: string
+  rating: number
+  reviewCount: number
+  completedJobs: number
+  reviews: Review[]
+}
+
+export interface Job {
+  id: number
+  title: string
+  description: string
+  skill: Skill
+  city: string
+  suburb: string
+  clientEmail: string
+  clientPhone: string
+  budgetMin: number
+  budgetMax: number
+  urgency: 'Flexible' | 'Urgent' | 'This Week'
+  status: 'Open' | 'In Progress' | 'Done'
+  clientName: string
+  applicants: number
+}
+
+export interface Application {
+  id: number
+  jobId: number
+  jobTitle: string
+  clientName: string
+  clientEmail: string
+  tradespersonName: string
+  tradespersonEmail: string
+  suburb: string
+  proposedRate: number
+  status: 'Pending' | 'Accepted' | 'Completed'
+}
+
+export interface NotificationItem {
+  id: number
+  title: string
+  detail: string
+  audience: UserRole | 'both'
+}
+
+export interface PlatformUser {
+  id: string
+  fullName: string
+  email: string
+  phone: string
+  suburb: string
+  role: UserRole
+  status: 'Active' | 'Suspended' | 'Flagged'
+  registeredAt: string
+}
+
+export interface PlatformReview {
+  id: number
+  reviewer: string
+  target: string
+  rating: number
+  comment: string
+  status: 'Live' | 'Flagged'
+}
+
+export interface ReportItem {
+  id: number
+  type: 'User' | 'Job' | 'Review'
+  subject: string
+  reason: string
+  status: 'Open' | 'Investigating' | 'Resolved'
+}
+
+export interface LoginLog {
+  id: number
+  user: string
+  ipAddress: string
+  time: string
+}
+
+export interface JoinRequest {
+  id: string
+  fullName: string
+  email: string
+  phone: string
+  suburb: string
+  city: string
+  primarySkill: string
+  yearsExperience: number
+  status: 'Pending' | 'Approved' | 'Rejected'
+  submittedAt: string
+}
+
+export interface CoverageProvince {
+  province: string
+  city: string
+  areas: string[]
+  marker: {
+    top: number
+    left: number
+  }
+}
+
+export interface StoredAdminCredential {
+  email: string
+  password: string
+  updatedAt: string
+}
+wrld@wrld-ThinkPad-T450:~/Desktop/SKILL--LINK$ cat ~/Desktop/SKILL--LINK/backend/src/lib/supabase.ts
+import { createClient } from '@supabase/supabase-js'
+import dotenv from 'dotenv'
+
+dotenv.config()
+
+const supabaseUrl = process.env.SUPABASE_URL
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+export const supabaseAdmin=
+  supabaseUrl && serviceRoleKey ? createClient(supabaseUrl, serviceRoleKey) : null
+
+wrld@wrld-ThinkPad-T450:~/Desktop/SKILL--LINK$         
