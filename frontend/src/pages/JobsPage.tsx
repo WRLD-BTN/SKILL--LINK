@@ -95,6 +95,7 @@ export function JobsPage() {
                 suburb: suburb.trim(),
                 clientName: user.name,
                 clientEmail: user.email,
+                clientPhone: user.phone,
                 budgetMin: Number(budgetMin) || 0,
                 budgetMax: Number(budgetMax) || Number(budgetMin) || 0,
                 urgency,
@@ -249,12 +250,22 @@ export function JobsPage() {
                     proposedRate: Math.round((job.budgetMin + job.budgetMax) / 2),
                   })
 
-                  setMessage(result.ok ? `Application sent for ${job.title}` : result.message)
+                  if (result.ok) {
+                    setMessage(`Application sent for ${job.title}`)
+                    const waPhone = job.clientPhone.replace(/\D/g, '')
+                    const waMessage = encodeURIComponent(
+                      `Hi ${job.clientName}, I applied for your job "${job.title}" on SkillLink. I'm ${user.name} and I can do this work. Let's connect!`
+                    )
+                    window.open(`https://wa.me/${waPhone}?text=${waMessage}`, '_blank', 'noopener,noreferrer')
+                  } else {
+                    setMessage(result.message)
+                  }
+
                   setJobs(readJobs())
                 }}
                 type="button"
               >
-                I Can Do This
+                💬 I Can Do This
               </button>
             )}
             {user?.role === 'client' && (

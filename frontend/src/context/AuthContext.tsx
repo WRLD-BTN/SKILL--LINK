@@ -1,6 +1,7 @@
+// AuthContext stores the signed-in user locally while delegating approval and password rules to the backend API.
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { changeAdminPasswordRequest, loginRequest, type AuthUserPayload, type LoginResponse } from '../lib/api'
 import { normalizeZimbabwePhone } from '../lib/phone'
-import { upsertRegisteredUser } from '../lib/registeredUsers'
 import type { UserRole } from '../types'
 
 interface AuthUser {
@@ -13,11 +14,13 @@ interface AuthUser {
 
 interface AuthContextValue {
   user: AuthUser | null
-  login: (payload: LoginPayload) => { ok: boolean; message?: string }
+  login: (payload: LoginPayload) => Promise<LoginResponse>
+  changeAdminPassword: (payload: ChangeAdminPasswordPayload) => Promise<{ ok: boolean; message?: string }>
   logout: () => void
 }
 
 interface LoginPayload {
+  mode: 'create' | 'signin'
   name: string
   phone: string
   email: string
@@ -26,10 +29,24 @@ interface LoginPayload {
   password: string
 }
 
+interface ChangeAdminPasswordPayload {
+  originalAdminPassword: string
+  newPassword: string
+  confirmPassword: string
+}
+
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 const storageKey = 'skilllink-auth-user'
-const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD ?? 'admin123'
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function mapAuthUser(user: AuthUserPayload): AuthUser {
+  return {
+    name: user.name,
+    phone: user.phone,
+    email: user.email,
+    role: user.role,
+    suburb: user.suburb,
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
@@ -38,56 +55,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const saved = window.localStorage.getItem(storageKey)
 
     if (saved) {
-      setUser(JSON.parse(saved) as AuthUser)
+      try {
+        setUser(JSON.parse(saved) as AuthUser)
+      } catch (error) {
+        console.error('Failed to parse saved auth user', error)
+        window.localStorage.removeItem(storageKey)
+      }
     }
   }, [])
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
-      login: ({ email, name, password, phone, role, suburb }) => {
+      login: async ({ email, mode, name, password, phone, role, suburb }) => {
         const cleanedEmail = email.trim().toLowerCase()
-        const normalizedPhone = normalizeZimbabwePhone(phone)
+        const normalizedPhone = normalizeZimbabwePhone(phone) ?? phone.trim()
 
-        if (!cleanedEmail) {
-          return { ok: false, message: 'Email is required to sign in or create an account.' }
-        }
-
-        if (!emailPattern.test(cleanedEmail)) {
-          return { ok: false, message: 'Enter a valid email address.' }
-        }
-
-        if (role !== 'admin' && !normalizedPhone) {
-          return { ok: false, message: 'Enter a valid Zimbabwean phone number.' }
-        }
-
-        if (role === 'admin' && password !== adminPassword) {
-          return { ok: false, message: 'Admin password is incorrect.' }
-        }
-
-        if (password.trim().length < 4) {
-          return { ok: false, message: 'Enter a password with at least 4 characters.' }
-        }
-
-        const nextUser: AuthUser = {
-          name: name.trim() || (role === 'admin' ? 'Admin User' : 'SkillLink User'),
-          phone: normalizedPhone ?? phone.trim(),
+        const result = await loginRequest({
+          mode,
+          name,
           email: cleanedEmail,
+          password,
+          phone: normalizedPhone,
           role,
-          suburb: suburb.trim() || 'Harare',
-        }
-
-        setUser(nextUser)
-        window.localStorage.setItem(storageKey, JSON.stringify(nextUser))
-        upsertRegisteredUser({
-          fullName: nextUser.name,
-          phone: nextUser.phone,
-          email: nextUser.email,
-          suburb: nextUser.suburb,
-          role: nextUser.role,
+          suburb,
         })
 
-        return { ok: true }
+        if (result.ok && result.user) {
+          const nextUser = mapAuthUser(result.user)
+          setUser(nextUser)
+          window.localStorage.setItem(storageKey, JSON.stringify(nextUser))
+        }
+
+        return result
+      },
+      changeAdminPassword: async ({ confirmPassword, newPassword, originalAdminPassword }) => {
+        if (!user || user.role !== 'admin') {
+          return { ok: false, message: 'Only a signed-in admin can change this password.' }
+        }
+
+        if (newPassword.trim() !== confirmPassword.trim()) {
+          return { ok: false, message: 'New password and confirmation do not match.' }
+        }
+
+        return changeAdminPasswordRequest({
+          email: user.email,
+          originalAdminPassword,
+          newPassword,
+        })
       },
       logout: () => {
         setUser(null)

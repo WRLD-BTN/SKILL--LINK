@@ -72,6 +72,7 @@ export function addClientJob(input: {
   suburb: string
   clientName: string
   clientEmail: string
+  clientPhone: string
   budgetMin: number
   budgetMax: number
   urgency: Job['urgency']
@@ -85,6 +86,7 @@ export function addClientJob(input: {
     city: input.city,
     suburb: input.suburb,
     clientEmail: input.clientEmail,
+    clientPhone: input.clientPhone,
     budgetMin: input.budgetMin,
     budgetMax: input.budgetMax,
     urgency: input.urgency,
@@ -137,4 +139,37 @@ export function applyToJob(input: {
   writeJobs(nextJobs)
 
   return { ok: true as const, application: nextApplication }
+}
+
+export function acceptApplication(applicationId: number) {
+  const applications = readApplications()
+  const nextApplications = applications.map((app) =>
+    app.id === applicationId && app.status === 'Pending'
+      ? { ...app, status: 'Accepted' as const }
+      : app,
+  )
+  writeApplications(nextApplications)
+  return nextApplications.find((app) => app.id === applicationId) ?? null
+}
+
+export function unacceptApplication(applicationId: number) {
+  const applications = readApplications()
+  const nextApplications = applications.map((app) =>
+    app.id === applicationId && app.status === 'Accepted'
+      ? { ...app, status: 'Pending' as const }
+      : app,
+  )
+  writeApplications(nextApplications)
+  return nextApplications.find((app) => app.id === applicationId) ?? null
+}
+
+export function rejectApplication(applicationId: number) {
+  const applications = readApplications()
+  const nextApplications = applications.map((app) =>
+    app.id === applicationId && (app.status === 'Pending' || app.status === 'Accepted')
+      ? { ...app, status: 'Completed' as const }
+      : app,
+  )
+  writeApplications(nextApplications)
+  return nextApplications.find((app) => app.id === applicationId) ?? null
 }

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { notifications, skills } from '../data/mockData'
-import { addClientJob, readApplications, readJobs } from '../lib/marketplaceStore'
+import { notifications, skills, tradespeople } from '../data/mockData'
+import { acceptApplication, addClientJob, readApplications, readJobs, rejectApplication, unacceptApplication } from '../lib/marketplaceStore'
 import type { Application, Job } from '../types'
 
 export function DashboardPage() {
@@ -15,6 +15,7 @@ export function DashboardPage() {
   const [skillName, setSkillName] = useState(skills[0]?.name ?? 'Plumber')
   const [budgetMax, setBudgetMax] = useState('120')
   const [message, setMessage] = useState('')
+  const [showWhatsApp, setShowWhatsApp] = useState<number | null>(null)
   const role = user?.role ?? 'client'
 
   useEffect(() => {
@@ -111,6 +112,32 @@ export function DashboardPage() {
   const totalApplicants = applicantActivity.length
   const acceptedApplications = personalApplications.filter((item) => item.status === 'Accepted').length
 
+  function getTradespersonWhatsApp(tradespersonName: string): string {
+    const tradesperson = tradespeople.find((tp) => tp.fullName === tradespersonName)
+    return tradesperson?.whatsappNumber || ''
+  }
+
+  function handleWhatsAppContact(application: Application) {
+    const waPhone = getTradespersonWhatsApp(application.tradespersonName)
+
+    if (!waPhone) {
+      setMessage('WhatsApp number not available for this tradesperson.')
+      return
+    }
+
+    const cleanPhone = waPhone.replace(/\D/g, '')
+    const waMessage = encodeURIComponent(
+      `Hi ${application.tradespersonName}, I'm ${user?.name}. I accepted your application for "${application.jobTitle}" on SkillLink. Let's discuss the details!`
+    )
+    const waUrl = `https://wa.me/${cleanPhone}?text=${waMessage}`
+    
+    // Show WhatsApp info + direct link
+    setShowWhatsApp(application.id)
+    
+    // Try opening WhatsApp
+    window.open(waUrl, '_blank', 'noopener,noreferrer')
+  }
+
   return (
     <div className="page-stack">
       <section className="section-header">
@@ -169,10 +196,11 @@ export function DashboardPage() {
                 title: title.trim(),
                 description: description.trim() || 'Client posted a new request from the dashboard.',
                 skill: selectedSkill,
-                city: 'Harare',
+                city: user.city || 'Harare',
                 suburb: suburb.trim(),
                 clientName: user.name,
                 clientEmail: user.email,
+                clientPhone: user.phone,
                 budgetMin: 0,
                 budgetMax: Number(budgetMax) || 0,
                 urgency: 'Flexible',
@@ -182,6 +210,7 @@ export function DashboardPage() {
               setApplications(readApplications())
               setTitle('')
               setDescription('')
+              setSuburb('')
               setBudgetMax('120')
               setMessage(`Your request "${nextJob.title}" is now live.`)
             }}
@@ -296,8 +325,65 @@ export function DashboardPage() {
                       <p className="muted">
                         Applied to {application.jobTitle} · ${application.proposedRate}
                       </p>
+                      {application.status === 'Accepted' && (
+                        <div style={{ marginTop: '0.5rem' }}>
+                          <p style={{ color: '#10b981', fontWeight: 600, margin: '0 0 0.35rem 0', fontSize: '0.85rem' }}>
+                            📱 WhatsApp: {getTradespersonWhatsApp(application.tradespersonName)}
+                          </p>
+                          <a
+                            href={`https://wa.me/${getTradespersonWhatsApp(application.tradespersonName).replace(/\D/g, '')}?text=${encodeURIComponent(`Hi ${application.tradespersonName}, I'm ${user?.name}. I accepted your application for "${application.jobTitle}" on SkillLink. Let's discuss the details!`)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="primary-button"
+                            style={{ padding: '0.45rem 0.85rem', fontSize: '0.85rem', minHeight: 'auto', textDecoration: 'none', display: 'inline-flex' }}
+                          >
+                            💬 Chat on WhatsApp
+                          </a>
+                        </div>
+                      )}
                     </div>
-                    <span>{application.status}</span>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span>{application.status}</span>
+                      {application.status === 'Pending' && (
+                        <button
+                          className="primary-button"
+                          onClick={() => {
+                            acceptApplication(application.id)
+                            setApplications(readApplications())
+                          }}
+                          type="button"
+                          style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem', minHeight: 'auto' }}
+                        >
+                          Accept
+                        </button>
+                      )}
+                      {application.status === 'Accepted' && (
+                        <button
+                          className="secondary-button"
+                          onClick={() => {
+                            unacceptApplication(application.id)
+                            setApplications(readApplications())
+                          }}
+                          type="button"
+                          style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem', minHeight: 'auto' }}
+                        >
+                          ↩ Unaccept
+                        </button>
+                      )}
+                      {(application.status === 'Pending' || application.status === 'Accepted') && (
+                        <button
+                          className="ghost-button"
+                          onClick={() => {
+                            rejectApplication(application.id)
+                            setApplications(readApplications())
+                          }}
+                          type="button"
+                          style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem', minHeight: 'auto' }}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                   </article>
                 ))
               : nearbyOpenJobs.map((job) => (

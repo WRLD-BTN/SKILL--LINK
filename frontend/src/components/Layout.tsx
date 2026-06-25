@@ -4,10 +4,12 @@ import type { ReactNode } from 'react'
 
 export function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth()
+  // Keep the top-level navigation role-aware so admin links do not leak into regular user flows.
   const navItems =
     user?.role === 'admin'
       ? [
           { to: '/admin', label: 'Admin' },
+          { to: '/admin/requests', label: 'Requests' },
           { to: '/overview', label: 'Overview' },
           { to: '/tradespeople', label: 'Tradespeople' },
           { to: '/jobs', label: 'Jobs' },

@@ -1,3 +1,4 @@
+// Shared frontend types keep route pages, local storage helpers, and mock data aligned.
 export type UserRole = 'client' | 'tradesperson' | 'admin'
 
 export interface Skill {
@@ -38,6 +39,7 @@ export interface Job {
   city: string
   suburb: string
   clientEmail: string
+  clientPhone: string
   budgetMin: number
   budgetMax: number
   urgency: 'Flexible' | 'Urgent' | 'This Week'
@@ -122,4 +124,10 @@ export interface CoverageProvince {
     top: number
     left: number
   }
+}
+
+export interface StoredAdminCredential {
+  email: string
+  password: string
+  updatedAt: string
 }

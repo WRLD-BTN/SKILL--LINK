@@ -1,72 +1,102 @@
+// Admin dashboard now reads users and join-request counts from the backend so approval state is not browser-only.
 import { useEffect, useMemo, useState } from 'react'
-import { Navigate } from 'react-router-dom'
-import { jobs, loginLogs, notifications, platformReviews, platformUsers, reports, skills } from '../data/mockData'
+import { Link, Navigate } from 'react-router-dom'
+import {
+  changeAdminPasswordRequest,
+  fetchAdminRequests,
+  fetchAdminUsers,
+  removeAdminUser,
+  updateAdminUserStatus,
+} from '../lib/api'
+import { jobs, loginLogs, notifications, platformReviews, reports, skills } from '../data/mockData'
 import { useAuth } from '../context/AuthContext'
-import { readJoinRequests, writeJoinRequests } from '../lib/joinRequests'
-import { readRegisteredUsers, upsertRegisteredUser, writeRegisteredUsers } from '../lib/registeredUsers'
-import type { JoinRequest } from '../types'
+import type { JoinRequest, PlatformUser } from '../types'
 
 export function AdminDashboardPage() {
   const { user } = useAuth()
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([])
-  const [registeredUsers, setRegisteredUsers] = useState(platformUsers)
+  const [registeredUsers, setRegisteredUsers] = useState<PlatformUser[]>([])
+  const [originalAdminPassword, setOriginalAdminPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordMessage, setPasswordMessage] = useState('')
+  const [passwordError, setPasswordError] = useState('')
+  const [dataError, setDataError] = useState('')
 
   useEffect(() => {
-    setJoinRequests(readJoinRequests())
-    setRegisteredUsers(readRegisteredUsers())
+    Promise.all([fetchAdminRequests(), fetchAdminUsers()])
+      .then(([requests, users]) => {
+        setJoinRequests(requests)
+        setRegisteredUsers(users)
+        setDataError('')
+      })
+      .catch((adminError) => {
+        setDataError(adminError instanceof Error ? adminError.message : 'Unable to load admin data.')
+      })
   }, [])
 
   if (user?.role !== 'admin') {
     return <Navigate replace to="/dashboard" />
   }
 
-  const allUsers = useMemo(() => registeredUsers, [registeredUsers])
+  const adminUser = user
 
-  const activeTradespeople = allUsers.filter(
-    (user) => user.role === 'tradesperson' && user.status === 'Active',
+  const activeUsers = registeredUsers.filter((registeredUser) => registeredUser.status === 'Active').length
+  const activeClients = registeredUsers.filter(
+    (registeredUser) => registeredUser.role === 'client' && registeredUser.status === 'Active',
+  ).length
+  const activeTradespeople = registeredUsers.filter(
+    (registeredUser) => registeredUser.role === 'tradesperson' && registeredUser.status === 'Active',
   ).length
   const flaggedReviews = platformReviews.filter((review) => review.status === 'Flagged').length
   const openReports = reports.filter((report) => report.status !== 'Resolved').length
   const adminAlerts = notifications.filter((item) => item.audience === 'admin' || item.audience === 'both')
-  const pendingJoinRequests = joinRequests.filter((request) => request.status === 'Pending').length
+  const pendingJoinRequests = useMemo(
+    () => joinRequests.filter((request) => request.status === 'Pending'),
+    [joinRequests],
+  )
 
-  function updateJoinRequestStatus(id: string, status: JoinRequest['status']) {
-    const nextRequests = joinRequests.map((request) =>
-      request.id === id ? { ...request, status } : request,
-    )
-
-    setJoinRequests(nextRequests)
-    writeJoinRequests(nextRequests)
-
-    if (status === 'Approved') {
-      const approvedRequest = nextRequests.find((request) => request.id === id)
-
-      if (approvedRequest) {
-        upsertRegisteredUser({
-          fullName: approvedRequest.fullName,
-          phone: approvedRequest.phone,
-          email: approvedRequest.email,
-          suburb: approvedRequest.suburb,
-          role: 'tradesperson',
-        })
-        setRegisteredUsers(readRegisteredUsers())
-      }
+  async function handleUserStatus(userId: string, status: PlatformUser['status']) {
+    try {
+      const result = await updateAdminUserStatus(userId, status)
+      setRegisteredUsers((current) => current.map((entry) => (entry.id === userId ? result.user : entry)))
+    } catch (statusError) {
+      setDataError(statusError instanceof Error ? statusError.message : 'Unable to update user status.')
     }
   }
 
-  function updateUserStatus(phone: string, status: 'Active' | 'Suspended') {
-    const nextUsers = registeredUsers.map((entry) =>
-      entry.phone.trim() === phone.trim() ? { ...entry, status } : entry,
-    )
-
-    setRegisteredUsers(nextUsers)
-    writeRegisteredUsers(nextUsers)
+  async function handleUserRemoval(userId: string) {
+    try {
+      await removeAdminUser(userId)
+      setRegisteredUsers((current) => current.filter((entry) => entry.id !== userId))
+    } catch (removeError) {
+      setDataError(removeError instanceof Error ? removeError.message : 'Unable to remove user.')
+    }
   }
 
-  function removeUser(phone: string) {
-    const nextUsers = registeredUsers.filter((entry) => entry.phone.trim() !== phone.trim())
-    setRegisteredUsers(nextUsers)
-    writeRegisteredUsers(nextUsers)
+  async function handlePasswordChange() {
+    setPasswordError('')
+    setPasswordMessage('')
+
+    if (newPassword.trim() !== confirmPassword.trim()) {
+      setPasswordError('New password and confirmation do not match.')
+      return
+    }
+
+    try {
+      const result = await changeAdminPasswordRequest({
+        email: adminUser.email,
+        originalAdminPassword,
+        newPassword,
+      })
+
+      setOriginalAdminPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setPasswordMessage(result.message)
+    } catch (changeError) {
+      setPasswordError(changeError instanceof Error ? changeError.message : 'Unable to change password.')
+    }
   }
 
   return (
@@ -78,10 +108,16 @@ export function AdminDashboardPage() {
         </div>
       </section>
 
+      {dataError && <p className="auth-error">{dataError}</p>}
+
       <section className="stats-grid admin-stats">
         <article className="stat-card">
-          <strong>{allUsers.length}</strong>
-          <span>Total users</span>
+          <strong>{activeUsers}</strong>
+          <span>Active users</span>
+        </article>
+        <article className="stat-card">
+          <strong>{activeClients}</strong>
+          <span>Active clients</span>
         </article>
         <article className="stat-card">
           <strong>{activeTradespeople}</strong>
@@ -96,19 +132,19 @@ export function AdminDashboardPage() {
           <span>Flagged reviews</span>
         </article>
         <article className="stat-card">
-          <strong>{pendingJoinRequests}</strong>
+          <strong>{pendingJoinRequests.length}</strong>
           <span>Pending join requests</span>
         </article>
       </section>
 
       <section className="admin-links">
-        <a className="admin-link-card" href="#requests">
+        <Link className="admin-link-card" to="/admin/requests">
           <strong>Requests</strong>
-          <span>{pendingJoinRequests} pending</span>
-        </a>
+          <span>{pendingJoinRequests.length} pending</span>
+        </Link>
         <a className="admin-link-card" href="#users">
           <strong>User management</strong>
-          <span>{allUsers.length} users</span>
+          <span>{registeredUsers.length} users</span>
         </a>
         <a className="admin-link-card" href="#jobs">
           <strong>Jobs</strong>
@@ -122,41 +158,27 @@ export function AdminDashboardPage() {
 
       <section className="admin-grid">
         <div className="panel" id="requests">
-          <a className="section-link" href="#requests">
+          <Link className="section-link" to="/admin/requests">
             <h2>Tradesperson join requests</h2>
-          </a>
+          </Link>
           <div className="list-stack">
-            {joinRequests.map((request) => (
+            {pendingJoinRequests.slice(0, 5).map((request) => (
               <article className="list-item" key={request.id}>
                 <div>
                   <strong>{request.fullName}</strong>
                   <p className="muted">
-                    {request.primarySkill} · {request.yearsExperience} yrs · {request.suburb},{' '}
-                    {request.city}
-                  </p>
-                  <p className="muted">
-                    {request.email} · {request.phone} · {request.submittedAt}
+                    {request.primarySkill} · {request.suburb}, {request.city}
                   </p>
                 </div>
                 <div className="action-row">
                   <span className="status">{request.status}</span>
-                  <button
-                    className="ghost-button"
-                    onClick={() => updateJoinRequestStatus(request.id, 'Approved')}
-                    type="button"
-                  >
-                    Approve
-                  </button>
-                  <button
-                    className="ghost-button"
-                    onClick={() => updateJoinRequestStatus(request.id, 'Rejected')}
-                    type="button"
-                  >
-                    Reject
-                  </button>
+                  <Link className="ghost-button" to={`/admin/requests/${request.id}`}>
+                    Review
+                  </Link>
                 </div>
               </article>
             ))}
+            {pendingJoinRequests.length === 0 && <p className="muted">No pending join requests right now.</p>}
           </div>
         </div>
 
@@ -165,32 +187,32 @@ export function AdminDashboardPage() {
             <h2>User management</h2>
           </a>
           <div className="list-stack">
-            {allUsers.map((user) => (
-              <article className="list-item" key={user.id}>
+            {registeredUsers.map((registeredUser) => (
+              <article className="list-item" key={registeredUser.id}>
                 <div>
-                  <strong>{user.fullName}</strong>
+                  <strong>{registeredUser.fullName}</strong>
                   <p className="muted">
-                    {user.phone} · {user.suburb} · {user.role}
+                    {registeredUser.phone} · {registeredUser.suburb} · {registeredUser.role}
                   </p>
-                  {user.email && <p className="muted">{user.email}</p>}
+                  {registeredUser.email && <p className="muted">{registeredUser.email}</p>}
                 </div>
                 <div className="action-row">
-                  <span className="status">{user.status}</span>
+                  <span className="status">{registeredUser.status}</span>
                   <button
                     className="ghost-button"
-                    onClick={() => updateUserStatus(user.phone, 'Suspended')}
+                    onClick={() => handleUserStatus(registeredUser.id, 'Suspended')}
                     type="button"
                   >
                     Suspend
                   </button>
                   <button
                     className="ghost-button"
-                    onClick={() => updateUserStatus(user.phone, 'Active')}
+                    onClick={() => handleUserStatus(registeredUser.id, 'Active')}
                     type="button"
                   >
                     Restore
                   </button>
-                  <button className="ghost-button" onClick={() => removeUser(user.phone)} type="button">
+                  <button className="ghost-button" onClick={() => handleUserRemoval(registeredUser.id)} type="button">
                     Remove
                   </button>
                 </div>
@@ -296,9 +318,49 @@ export function AdminDashboardPage() {
               </div>
             </div>
             <div className="mini-block">
+              <strong>Admin password settings</strong>
+              <p className="muted">
+                Each admin can keep a personal password, but the original SkillLink admin password is still required to set it.
+              </p>
+              <div className="auth-form inline-form">
+                <label>
+                  Original SkillLink password
+                  <input
+                    className="text-input"
+                    onChange={(event) => setOriginalAdminPassword(event.target.value)}
+                    type="password"
+                    value={originalAdminPassword}
+                  />
+                </label>
+                <label>
+                  New personal password
+                  <input
+                    className="text-input"
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    type="password"
+                    value={newPassword}
+                  />
+                </label>
+                <label>
+                  Confirm new password
+                  <input
+                    className="text-input"
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    type="password"
+                    value={confirmPassword}
+                  />
+                </label>
+                {passwordError && <p className="auth-error">{passwordError}</p>}
+                {passwordMessage && <p className="auth-success">{passwordMessage}</p>}
+                <button className="primary-button" onClick={handlePasswordChange} type="button">
+                  Save personal password
+                </button>
+              </div>
+            </div>
+            <div className="mini-block">
               <strong>Pending actions</strong>
               <p className="muted">
-                {openReports} open reports · {adminAlerts.length} admin alerts · {pendingJoinRequests}{' '}
+                {openReports} open reports · {adminAlerts.length} admin alerts · {pendingJoinRequests.length}{' '}
                 join requests
               </p>
             </div>

@@ -220,6 +220,7 @@ export const jobs: Job[] = Array.from({ length: 20 }, (_, index) => {
     city: area.city,
     suburb: area.area,
     clientEmail: makeEmail(clientNames[index % clientNames.length], 'client'),
+    clientPhone: makePhone(200 + index),
     budgetMin,
     budgetMax: budgetMin + 35,
     urgency: urgencies[index % urgencies.length],

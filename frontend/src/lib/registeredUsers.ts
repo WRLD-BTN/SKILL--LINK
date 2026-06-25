@@ -1,3 +1,4 @@
+// Registered users are persisted locally so approval and dashboard flows survive refreshes in the MVP.
 import { platformUsers } from '../data/mockData'
 import type { PlatformUser, UserRole } from '../types'
 
@@ -5,6 +6,16 @@ const storageKey = 'skilllink-registered-users'
 
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
+}
+
+function matchesUserContact(user: PlatformUser, email: string, phone: string) {
+  const normalizedEmail = email.trim().toLowerCase()
+  const normalizedPhone = phone.trim()
+
+  return (
+    (normalizedEmail.length > 0 && user.email.trim().toLowerCase() === normalizedEmail) ||
+    (normalizedPhone.length > 0 && user.phone.trim() === normalizedPhone)
+  )
 }
 
 export function readRegisteredUsers() {
@@ -48,12 +59,27 @@ export function writeRegisteredUsers(users: PlatformUser[]) {
   window.localStorage.setItem(storageKey, JSON.stringify(users))
 }
 
+export function findRegisteredUserByContact(input: {
+  email?: string
+  phone?: string
+  role?: UserRole
+}) {
+  return readRegisteredUsers().find((user) => {
+    if (input.role && user.role !== input.role) {
+      return false
+    }
+
+    return matchesUserContact(user, input.email ?? '', input.phone ?? '')
+  })
+}
+
 export function upsertRegisteredUser(input: {
   fullName: string
   phone: string
   email: string
   suburb: string
   role: UserRole
+  status?: PlatformUser['status']
 }) {
   if (!canUseStorage()) {
     return
@@ -72,6 +98,7 @@ export function upsertRegisteredUser(input: {
         phone,
         suburb: input.suburb.trim() || existing.suburb,
         role: input.role,
+        status: input.status ?? existing.status,
       }
     : {
         id: `signup-${Date.now()}`,
@@ -80,7 +107,7 @@ export function upsertRegisteredUser(input: {
         phone,
         suburb: input.suburb.trim() || 'Harare',
         role: input.role,
-        status: 'Active',
+        status: input.status ?? 'Active',
         registeredAt: new Date().toISOString().slice(0, 10),
       }
 
