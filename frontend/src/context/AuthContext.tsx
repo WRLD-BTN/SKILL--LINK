@@ -10,6 +10,7 @@ interface AuthUser {
   email: string
   role: UserRole
   suburb: string
+  city?: string
 }
 
 interface AuthContextValue {
@@ -25,6 +26,7 @@ interface LoginPayload {
   phone: string
   email: string
   suburb: string
+  city?: string
   role: UserRole
   password: string
 }
