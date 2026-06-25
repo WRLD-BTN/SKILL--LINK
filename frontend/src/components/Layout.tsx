@@ -1,10 +1,12 @@
+import { useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import type { ReactNode } from 'react'
 
 export function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth()
-  // Keep the top-level navigation role-aware so admin links do not leak into regular user flows.
+  const [menuOpen, setMenuOpen] = useState(false)
+
   const navItems =
     user?.role === 'admin'
       ? [
@@ -31,7 +33,8 @@ export function Layout({ children }: { children: ReactNode }) {
           </div>
         </Link>
 
-        <nav className="nav">
+        {/* Desktop nav */}
+        <nav className="nav desktop-nav">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
@@ -47,16 +50,43 @@ export function Layout({ children }: { children: ReactNode }) {
           {user && (
             <div className="user-chip">
               <strong>{user.name}</strong>
-              <span>
-                {user.role} · {user.suburb}
-              </span>
+              <span>{user.role} · {user.suburb}</span>
             </div>
           )}
-          <button className="primary-button" onClick={logout} type="button">
+          <button className="primary-button desktop-logout" onClick={logout} type="button">
             Log out
+          </button>
+
+          {/* Hamburger button — mobile only */}
+          <button
+            className="hamburger"
+            onClick={() => setMenuOpen((o) => !o)}
+            type="button"
+            aria-label="Toggle menu"
+          >
+            {menuOpen ? '✕' : '☰'}
           </button>
         </div>
       </header>
+
+      {/* Mobile dropdown menu */}
+      {menuOpen && (
+        <div className="mobile-menu">
+          {navItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) => (isActive ? 'mobile-nav-link active' : 'mobile-nav-link')}
+              onClick={() => setMenuOpen(false)}
+            >
+              {item.label}
+            </NavLink>
+          ))}
+          <button className="mobile-logout" onClick={logout} type="button">
+            Log out
+          </button>
+        </div>
+      )}
 
       <main className="page">{children}</main>
     </div>
